@@ -1,7 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useData } from "../../context/DataContext";
+import {
+  getByCategory,
+  getMonthlySummary,
+  getBalance,
+} from "../../services/summaryService";
+import { formatAmount } from "../../utils/formatters";
+import PieChart from "../../components/PieChart/PieChart";
+import BarChart from "../../components/BarChart/BarChart";
 import styles from "./Analytics.module.css";
 
 function Analytics() {
+  const { incomes, expenses } = useData();
   const [period, setPeriod] = useState("month");
 
   const periods = [
@@ -10,6 +20,37 @@ function Analytics() {
     { id: "quarter", label: "Квартал" },
     { id: "year", label: "Год" },
   ];
+
+  // Определяем количество месяцев для графика в зависимости от периода
+  const monthsCount = useMemo(() => {
+    switch (period) {
+      case "week":
+        return 1;
+      case "month":
+        return 1;
+      case "quarter":
+        return 3;
+      case "year":
+        return 12;
+      default:
+        return 6;
+    }
+  }, [period]);
+
+  // Данные для круговой диаграммы (расходы по категориям)
+  const categoryData = useMemo(() => {
+    return getByCategory("expense");
+  }, [expenses]);
+
+  // Данные для столбчатого графика (доходы и расходы по месяцам)
+  const monthlyData = useMemo(() => {
+    return getMonthlySummary(monthsCount);
+  }, [incomes, expenses, monthsCount]);
+
+  // Сводная статистика
+  const { totalIncome, totalExpense, balance } = useMemo(() => {
+    return getBalance();
+  }, [incomes, expenses]);
 
   return (
     <div className={styles.analytics}>
@@ -35,24 +76,14 @@ function Analytics() {
         <div className={styles.chartCard}>
           <h2 className={styles.chartTitle}>Расходы по категориям</h2>
           <div className={styles.chartContainer}>
-            <div className={styles.chartPlaceholder}>
-              <div className={styles.chartPlaceholderIcon}>📊</div>
-              <p className={styles.chartPlaceholderText}>
-                Графики появятся после подключения данных
-              </p>
-            </div>
+            <PieChart data={categoryData} />
           </div>
         </div>
 
         <div className={styles.chartCard}>
           <h2 className={styles.chartTitle}>Доходы и расходы по месяцам</h2>
           <div className={styles.chartContainer}>
-            <div className={styles.chartPlaceholder}>
-              <div className={styles.chartPlaceholderIcon}>📈</div>
-              <p className={styles.chartPlaceholderText}>
-                Графики появятся после подключения данных
-              </p>
-            </div>
+            <BarChart data={monthlyData} />
           </div>
         </div>
       </div>
@@ -65,7 +96,7 @@ function Analytics() {
             <span
               className={`${styles.summaryValue} ${styles.summaryValueIncome}`}
             >
-              0 ₽
+              {formatAmount(totalIncome)}
             </span>
           </div>
           <div className={styles.summaryItem}>
@@ -73,7 +104,7 @@ function Analytics() {
             <span
               className={`${styles.summaryValue} ${styles.summaryValueExpense}`}
             >
-              0 ₽
+              {formatAmount(totalExpense)}
             </span>
           </div>
           <div className={styles.summaryItem}>
@@ -81,7 +112,7 @@ function Analytics() {
             <span
               className={`${styles.summaryValue} ${styles.summaryValueBalance}`}
             >
-              0 ₽
+              {formatAmount(balance)}
             </span>
           </div>
         </div>
