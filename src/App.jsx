@@ -1,32 +1,19 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import styles from './App.module.css';
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout/Layout";
+import styles from "./App.module.css";
 
-// Временные заглушки — будут заменены на реальные компоненты в следующих шагах
-const LayoutPlaceholder = ({ children }) => (
-  <div className={styles.app}>
-    <header style={{ padding: 'var(--spacing-md)', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)' }}>
-      Header (будет добавлен в шаге B4)
-    </header>
-    <main style={{ flex: 1, padding: 'var(--spacing-lg)', maxWidth: 'var(--container-max-width)', margin: '0 auto', width: '100%' }}>
-      {children}
-    </main>
-  </div>
-);
-
-const DashboardPlaceholder = () => (
-  <div>
-    <h2>Dashboard</h2>
-    <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--spacing-sm)' }}>
-      Страница будет добавлена в шаге C2
-    </p>
-  </div>
-);
+import Dashboard from "./pages/Dashboard/Dashboard";
 
 const HistoryPlaceholder = () => (
   <div>
-    <h2>History</h2>
-    <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--spacing-sm)' }}>
+    <h2>История</h2>
+    <p
+      style={{
+        color: "var(--color-text-muted)",
+        marginTop: "var(--spacing-sm)",
+      }}
+    >
       Страница будет добавлена в шаге C4
     </p>
   </div>
@@ -34,8 +21,13 @@ const HistoryPlaceholder = () => (
 
 const AnalyticsPlaceholder = () => (
   <div>
-    <h2>Analytics</h2>
-    <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--spacing-sm)' }}>
+    <h2>Аналитика</h2>
+    <p
+      style={{
+        color: "var(--color-text-muted)",
+        marginTop: "var(--spacing-sm)",
+      }}
+    >
       Страница будет добавлена в шаге C6
     </p>
   </div>
@@ -46,21 +38,11 @@ function App() {
     <BrowserRouter>
       <div className={styles.app}>
         <Routes>
-          <Route path="/" element={
-            <LayoutPlaceholder>
-              <DashboardPlaceholder />
-            </LayoutPlaceholder>
-          } />
-          <Route path="/history" element={
-            <LayoutPlaceholder>
-              <HistoryPlaceholder />
-            </LayoutPlaceholder>
-          } />
-          <Route path="/analytics" element={
-            <LayoutPlaceholder>
-              <AnalyticsPlaceholder />
-            </LayoutPlaceholder>
-          } />
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="history" element={<HistoryPlaceholder />} />
+            <Route path="analytics" element={<AnalyticsPlaceholder />} />
+          </Route>
         </Routes>
       </div>
     </BrowserRouter>
