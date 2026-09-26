@@ -1,76 +1,38 @@
 import crypto from 'crypto';
-import db from '../db/connection.js';
-
-/**
- * Преобразование записи из БД (snake_case) в формат JSON (camelCase)
- */
-const mapIncomeToJSON = (row) => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    amount: row.amount,
-    date: row.date,
-    category: row.category,
-    comment: row.comment || '',
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-};
+import { getDb } from '../db/connection.js';
 
 /**
  * Получение всех доходов с опциональными фильтрами и пагинацией
- * @param {Object} options - Опции запроса
- * @param {string} options.category - Фильтр по категории
- * @param {string} options.startDate - Фильтр по начальной дате (YYYY-MM-DD)
- * @param {string} options.endDate - Фильтр по конечной дате (YYYY-MM-DD)
- * @param {number} options.page - Номер страницы (по умолчанию 1)
- * @param {number} options.limit - Количество записей на странице (по умолчанию 20)
- * @returns {Object} Объект с данными и метаинформацией
  */
-export const getAllIncomes = (options = {}) => {
+export const getAllIncomes = async (options = {}) => {
   const { category, startDate, endDate, page = 1, limit = 20 } = options;
+  const db = getDb();
 
-  // Строим динамический WHERE
-  const conditions = [];
-  const params = [];
+  let result = db.data.incomes;
 
+  // Фильтрация
   if (category) {
-    conditions.push('category = ?');
-    params.push(category);
+    result = result.filter((item) => item.category === category);
   }
-
   if (startDate) {
-    conditions.push('date >= ?');
-    params.push(startDate);
+    result = result.filter((item) => item.date >= startDate);
   }
-
   if (endDate) {
-    conditions.push('date <= ?');
-    params.push(endDate);
+    result = result.filter((item) => item.date <= endDate);
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  // Сортировка: новые даты первыми
+  result.sort((a, b) => new Date(b.date) - new Date(a.date) || new Date(b.createdAt) - new Date(a.createdAt));
 
-  // Получаем общее количество записей
-  const countQuery = `SELECT COUNT(*) as total FROM incomes ${whereClause}`;
-  const { total } = db.prepare(countQuery).get(...params);
-
-  // Получаем данные с пагинацией
+  const total = result.length;
   const offset = (page - 1) * limit;
-  const dataQuery = `
-    SELECT * FROM incomes 
-    ${whereClause}
-    ORDER BY date DESC, created_at DESC
-    LIMIT ? OFFSET ?
-  `;
-
-  const rows = db.prepare(dataQuery).all(...params, limit, offset);
+  const data = result.slice(offset, offset + limit);
 
   return {
-    data: rows.map(mapIncomeToJSON),
+    data,
     pagination: {
-      page,
-      limit,
+      page: Number(page),
+      limit: Number(limit),
       total,
       totalPages: Math.ceil(total / limit),
     },
@@ -79,71 +41,72 @@ export const getAllIncomes = (options = {}) => {
 
 /**
  * Получение дохода по ID
- * @param {string} id - Идентификатор дохода
- * @returns {Object|null} Объект дохода или null
  */
-export const getIncomeById = (id) => {
-  const row = db.prepare('SELECT * FROM incomes WHERE id = ?').get(id);
-  return mapIncomeToJSON(row);
+export const getIncomeById = async (id) => {
+  const db = getDb();
+  return db.data.incomes.find((item) => item.id === id) || null;
 };
 
 /**
  * Создание нового дохода
- * @param {Object} data - Данные дохода
- * @returns {Object} Созданный доход
  */
-export const createIncome = (data) => {
-  const { amount, date, category, comment = '' } = data;
-  const id = crypto.randomUUID();
+export const createIncome = async (data) => {
+  const db = getDb();
   const now = new Date().toISOString();
+  
+  const newIncome = {
+    id: crypto.randomUUID(),
+    amount: Number(data.amount),
+    date: data.date,
+    category: data.category,
+    comment: data.comment || '',
+    createdAt: now,
+    updatedAt: now,
+  };
 
-  const query = `
-    INSERT INTO incomes (id, amount, date, category, comment, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `;
+  db.data.incomes.push(newIncome);
+  await db.write(); // Сохраняем изменения в файл
 
-  db.prepare(query).run(id, amount, date, category, comment, now, now);
-
-  return getIncomeById(id);
+  return newIncome;
 };
 
 /**
  * Обновление существующего дохода
- * @param {string} id - Идентификатор дохода
- * @param {Object} data - Новые данные
- * @returns {Object|null} Обновлённый доход или null
  */
-export const updateIncome = (id, data) => {
-  const existing = getIncomeById(id);
-  if (!existing) return null;
+export const updateIncome = async (id, data) => {
+  const db = getDb();
+  const index = db.data.incomes.findIndex((item) => item.id === id);
+  
+  if (index === -1) return null;
 
-  const { amount, date, category, comment } = data;
   const now = new Date().toISOString();
+  const existing = db.data.incomes[index];
 
-  const query = `
-    UPDATE incomes
-    SET amount = ?, date = ?, category = ?, comment = ?, updated_at = ?
-    WHERE id = ?
-  `;
+  db.data.incomes[index] = {
+    ...existing,
+    amount: data.amount !== undefined ? Number(data.amount) : existing.amount,
+    date: data.date !== undefined ? data.date : existing.date,
+    category: data.category !== undefined ? data.category : existing.category,
+    comment: data.comment !== undefined ? data.comment : existing.comment,
+    updatedAt: now,
+  };
 
-  db.prepare(query).run(
-    amount ?? existing.amount,
-    date ?? existing.date,
-    category ?? existing.category,
-    comment ?? existing.comment,
-    now,
-    id
-  );
-
-  return getIncomeById(id);
+  await db.write();
+  return db.data.incomes[index];
 };
 
 /**
  * Удаление дохода
- * @param {string} id - Идентификатор дохода
- * @returns {boolean} true, если удалён успешно
  */
-export const deleteIncome = (id) => {
-  const result = db.prepare('DELETE FROM incomes WHERE id = ?').run(id);
-  return result.changes > 0;
+export const deleteIncome = async (id) => {
+  const db = getDb();
+  const initialLength = db.data.incomes.length;
+  
+  db.data.incomes = db.data.incomes.filter((item) => item.id !== id);
+  
+  if (db.data.incomes.length < initialLength) {
+    await db.write();
+    return true;
+  }
+  return false;
 };

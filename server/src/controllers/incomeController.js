@@ -11,11 +11,11 @@ import { createError } from '../middleware/errorHandler.js';
  * Получение списка всех доходов с фильтрами и пагинацией
  * GET /api/v1/incomes
  */
-export const getIncomes = (req, res, next) => {
+export const getIncomes = async (req, res, next) => {
   try {
     const { category, startDate, endDate, page = 1, limit = 20 } = req.query;
 
-    const result = getAllIncomes({
+    const result = await getAllIncomes({
       category,
       startDate,
       endDate,
@@ -36,10 +36,10 @@ export const getIncomes = (req, res, next) => {
  * Получение дохода по ID
  * GET /api/v1/incomes/:id
  */
-export const getIncome = (req, res, next) => {
+export const getIncome = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const income = getIncomeById(id);
+    const income = await getIncomeById(id);
 
     if (!income) {
       return next(createError('Доход не найден', 404, 'NOT_FOUND'));
@@ -55,11 +55,11 @@ export const getIncome = (req, res, next) => {
  * Создание нового дохода
  * POST /api/v1/incomes
  */
-export const addIncome = (req, res, next) => {
+export const addIncome = async (req, res, next) => {
   try {
     const { amount, date, category, comment } = req.body;
 
-    const newIncome = createIncome({
+    const newIncome = await createIncome({
       amount,
       date,
       category,
@@ -79,12 +79,12 @@ export const addIncome = (req, res, next) => {
  * Обновление существующего дохода
  * PUT /api/v1/incomes/:id
  */
-export const editIncome = (req, res, next) => {
+export const editIncome = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { amount, date, category, comment } = req.body;
 
-    const updatedIncome = updateIncome(id, {
+    const updatedIncome = await updateIncome(id, {
       amount,
       date,
       category,
@@ -108,10 +108,10 @@ export const editIncome = (req, res, next) => {
  * Удаление дохода
  * DELETE /api/v1/incomes/:id
  */
-export const removeIncome = (req, res, next) => {
+export const removeIncome = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const success = deleteIncome(id);
+    const success = await deleteIncome(id);
 
     if (!success) {
       return next(createError('Доход не найден', 404, 'NOT_FOUND'));

@@ -1,83 +1,41 @@
 import crypto from 'crypto';
-import db from '../db/connection.js';
-
-/**
- * Преобразование записи из БД (snake_case) в формат JSON (camelCase)
- */
-const mapExpenseToJSON = (row) => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    amount: row.amount,
-    date: row.date,
-    category: row.category,
-    comment: row.comment || '',
-    isRecurring: Boolean(row.is_recurring),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-};
+import { getDb } from '../db/connection.js';
 
 /**
  * Получение всех расходов с опциональными фильтрами и пагинацией
- * @param {Object} options - Опции запроса
- * @param {string} options.category - Фильтр по категории
- * @param {string} options.startDate - Фильтр по начальной дате (YYYY-MM-DD)
- * @param {string} options.endDate - Фильтр по конечной дате (YYYY-MM-DD)
- * @param {boolean} options.isRecurring - Фильтр по признаку регулярности
- * @param {number} options.page - Номер страницы (по умолчанию 1)
- * @param {number} options.limit - Количество записей на странице (по умолчанию 20)
- * @returns {Object} Объект с данными и метаинформацией
  */
-export const getAllExpenses = (options = {}) => {
+export const getAllExpenses = async (options = {}) => {
   const { category, startDate, endDate, isRecurring, page = 1, limit = 20 } = options;
+  const db = getDb();
 
-  // Строим динамический WHERE
-  const conditions = [];
-  const params = [];
+  let result = db.data.expenses;
 
+  // Фильтрация
   if (category) {
-    conditions.push('category = ?');
-    params.push(category);
+    result = result.filter((item) => item.category === category);
   }
-
   if (startDate) {
-    conditions.push('date >= ?');
-    params.push(startDate);
+    result = result.filter((item) => item.date >= startDate);
   }
-
   if (endDate) {
-    conditions.push('date <= ?');
-    params.push(endDate);
+    result = result.filter((item) => item.date <= endDate);
   }
-
   if (isRecurring !== undefined) {
-    conditions.push('is_recurring = ?');
-    params.push(isRecurring ? 1 : 0);
+    result = result.filter((item) => item.isRecurring === isRecurring);
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  // Сортировка: новые даты первыми
+  result.sort((a, b) => new Date(b.date) - new Date(a.date) || new Date(b.createdAt) - new Date(a.createdAt));
 
-  // Получаем общее количество записей
-  const countQuery = `SELECT COUNT(*) as total FROM expenses ${whereClause}`;
-  const { total } = db.prepare(countQuery).get(...params);
-
-  // Получаем данные с пагинацией
+  const total = result.length;
   const offset = (page - 1) * limit;
-  const dataQuery = `
-    SELECT * FROM expenses 
-    ${whereClause}
-    ORDER BY date DESC, created_at DESC
-    LIMIT ? OFFSET ?
-  `;
-
-  const rows = db.prepare(dataQuery).all(...params, limit, offset);
+  const data = result.slice(offset, offset + limit);
 
   return {
-    data: rows.map(mapExpenseToJSON),
+    data,
     pagination: {
-      page,
-      limit,
+      page: Number(page),
+      limit: Number(limit),
       total,
       totalPages: Math.ceil(total / limit),
     },
@@ -86,72 +44,74 @@ export const getAllExpenses = (options = {}) => {
 
 /**
  * Получение расхода по ID
- * @param {string} id - Идентификатор расхода
- * @returns {Object|null} Объект расхода или null
  */
-export const getExpenseById = (id) => {
-  const row = db.prepare('SELECT * FROM expenses WHERE id = ?').get(id);
-  return mapExpenseToJSON(row);
+export const getExpenseById = async (id) => {
+  const db = getDb();
+  return db.data.expenses.find((item) => item.id === id) || null;
 };
 
 /**
  * Создание нового расхода
- * @param {Object} data - Данные расхода
- * @returns {Object} Созданный расход
  */
-export const createExpense = (data) => {
-  const { amount, date, category, comment = '', isRecurring = false } = data;
-  const id = crypto.randomUUID();
+export const createExpense = async (data) => {
+  const db = getDb();
   const now = new Date().toISOString();
+  
+  const newExpense = {
+    id: crypto.randomUUID(),
+    amount: Number(data.amount),
+    date: data.date,
+    category: data.category,
+    comment: data.comment || '',
+    isRecurring: Boolean(data.isRecurring),
+    createdAt: now,
+    updatedAt: now,
+  };
 
-  const query = `
-    INSERT INTO expenses (id, amount, date, category, comment, is_recurring, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+  db.data.expenses.push(newExpense);
+  await db.write(); // Сохраняем изменения в файл
 
-  db.prepare(query).run(id, amount, date, category, comment, isRecurring ? 1 : 0, now, now);
-
-  return getExpenseById(id);
+  return newExpense;
 };
 
 /**
  * Обновление существующего расхода
- * @param {string} id - Идентификатор расхода
- * @param {Object} data - Новые данные
- * @returns {Object|null} Обновлённый расход или null
  */
-export const updateExpense = (id, data) => {
-  const existing = getExpenseById(id);
-  if (!existing) return null;
+export const updateExpense = async (id, data) => {
+  const db = getDb();
+  const index = db.data.expenses.findIndex((item) => item.id === id);
+  
+  if (index === -1) return null;
 
-  const { amount, date, category, comment, isRecurring } = data;
   const now = new Date().toISOString();
+  const existing = db.data.expenses[index];
 
-  const query = `
-    UPDATE expenses
-    SET amount = ?, date = ?, category = ?, comment = ?, is_recurring = ?, updated_at = ?
-    WHERE id = ?
-  `;
+  db.data.expenses[index] = {
+    ...existing,
+    amount: data.amount !== undefined ? Number(data.amount) : existing.amount,
+    date: data.date !== undefined ? data.date : existing.date,
+    category: data.category !== undefined ? data.category : existing.category,
+    comment: data.comment !== undefined ? data.comment : existing.comment,
+    isRecurring: data.isRecurring !== undefined ? Boolean(data.isRecurring) : existing.isRecurring,
+    updatedAt: now,
+  };
 
-  db.prepare(query).run(
-    amount ?? existing.amount,
-    date ?? existing.date,
-    category ?? existing.category,
-    comment ?? existing.comment,
-    isRecurring !== undefined ? (isRecurring ? 1 : 0) : (existing.isRecurring ? 1 : 0),
-    now,
-    id
-  );
-
-  return getExpenseById(id);
+  await db.write();
+  return db.data.expenses[index];
 };
 
 /**
  * Удаление расхода
- * @param {string} id - Идентификатор расхода
- * @returns {boolean} true, если удалён успешно
  */
-export const deleteExpense = (id) => {
-  const result = db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
-  return result.changes > 0;
+export const deleteExpense = async (id) => {
+  const db = getDb();
+  const initialLength = db.data.expenses.length;
+  
+  db.data.expenses = db.data.expenses.filter((item) => item.id !== id);
+  
+  if (db.data.expenses.length < initialLength) {
+    await db.write();
+    return true;
+  }
+  return false;
 };

@@ -1,30 +1,37 @@
-import Database from 'better-sqlite3';
-import fs from 'fs';
+import { JSONFilePreset } from 'lowdb/node';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { config } from '../config/index.js';
 
 // Получаем директорию текущего модуля
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Создаём директорию для базы данных, если её нет
-const dbDir = path.dirname(config.dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
+// Путь к JSON файлу базы данных
+const dbPath = path.resolve(__dirname, '../../data/db.json');
 
-// Инициализируем подключение к базе данных
-const db = new Database(config.dbPath);
+// Дефолтная структура базы данных
+const defaultData = { incomes: [], expenses: [] };
 
-// Включаем режим WAL для лучшей производительности
-db.pragma('journal_mode = WAL');
+// Переменная для хранения инстанса базы данных
+let db = null;
 
-// Читаем и выполняем SQL-скрипт для создания таблиц
-const schemaPath = path.join(__dirname, 'schema.sql');
-const schema = fs.readFileSync(schemaPath, 'utf-8');
-db.exec(schema);
+/**
+ * Инициализация базы данных (создаёт файл, если его нет)
+ */
+export const initializeDatabase = async () => {
+  if (!db) {
+    db = await JSONFilePreset(dbPath, defaultData);
+    console.log('✅ База данных (JSON) инициализирована успешно');
+  }
+  return db;
+};
 
-console.log('✅ База данных инициализирована успешно');
-
-export default db;
+/**
+ * Получение инстанса базы данных для использования в сервисах
+ */
+export const getDb = () => {
+  if (!db) {
+    throw new Error('База данных не инициализирована. Вызовите initializeDatabase() перед использованием.');
+  }
+  return db;
+};

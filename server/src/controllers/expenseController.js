@@ -11,11 +11,11 @@ import { createError } from '../middleware/errorHandler.js';
  * Получение списка всех расходов с фильтрами и пагинацией
  * GET /api/v1/expenses
  */
-export const getExpenses = (req, res, next) => {
+export const getExpenses = async (req, res, next) => {
   try {
     const { category, startDate, endDate, isRecurring, page = 1, limit = 20 } = req.query;
 
-    const result = getAllExpenses({
+    const result = await getAllExpenses({
       category,
       startDate,
       endDate,
@@ -37,10 +37,10 @@ export const getExpenses = (req, res, next) => {
  * Получение расхода по ID
  * GET /api/v1/expenses/:id
  */
-export const getExpense = (req, res, next) => {
+export const getExpense = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const expense = getExpenseById(id);
+    const expense = await getExpenseById(id);
 
     if (!expense) {
       return next(createError('Расход не найден', 404, 'NOT_FOUND'));
@@ -56,11 +56,11 @@ export const getExpense = (req, res, next) => {
  * Создание нового расхода
  * POST /api/v1/expenses
  */
-export const addExpense = (req, res, next) => {
+export const addExpense = async (req, res, next) => {
   try {
     const { amount, date, category, comment, isRecurring } = req.body;
 
-    const newExpense = createExpense({
+    const newExpense = await createExpense({
       amount,
       date,
       category,
@@ -81,12 +81,12 @@ export const addExpense = (req, res, next) => {
  * Обновление существующего расхода
  * PUT /api/v1/expenses/:id
  */
-export const editExpense = (req, res, next) => {
+export const editExpense = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { amount, date, category, comment, isRecurring } = req.body;
 
-    const updatedExpense = updateExpense(id, {
+    const updatedExpense = await updateExpense(id, {
       amount,
       date,
       category,
@@ -111,10 +111,10 @@ export const editExpense = (req, res, next) => {
  * Удаление расхода
  * DELETE /api/v1/expenses/:id
  */
-export const removeExpense = (req, res, next) => {
+export const removeExpense = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const success = deleteExpense(id);
+    const success = await deleteExpense(id);
 
     if (!success) {
       return next(createError('Расход не найден', 404, 'NOT_FOUND'));

@@ -4,11 +4,11 @@ import { getBalance, getByCategory, getByMonth } from '../services/summaryServic
  * Получение общего баланса
  * GET /api/v1/summary
  */
-export const getBalanceHandler = (req, res, next) => {
+export const getBalanceHandler = async (req, res, next) => {
   try {
     const { startDate, endDate } = req.query;
 
-    const balance = getBalance(startDate, endDate);
+    const balance = await getBalance(startDate, endDate);
 
     res.json({
       data: balance,
@@ -22,7 +22,7 @@ export const getBalanceHandler = (req, res, next) => {
  * Получение сумм по категориям
  * GET /api/v1/summary/by-category
  */
-export const getByCategoryHandler = (req, res, next) => {
+export const getByCategoryHandler = async (req, res, next) => {
   try {
     const { type = 'expense', startDate, endDate } = req.query;
 
@@ -36,7 +36,7 @@ export const getByCategoryHandler = (req, res, next) => {
       });
     }
 
-    const categoryData = getByCategory(type, startDate, endDate);
+    const categoryData = await getByCategory(type, startDate, endDate);
 
     res.json({
       data: categoryData,
@@ -51,7 +51,7 @@ export const getByCategoryHandler = (req, res, next) => {
  * Получение помесячной сводки
  * GET /api/v1/summary/by-month
  */
-export const getByMonthHandler = (req, res, next) => {
+export const getByMonthHandler = async (req, res, next) => {
   try {
     const { months = 6 } = req.query;
 
@@ -66,7 +66,7 @@ export const getByMonthHandler = (req, res, next) => {
       });
     }
 
-    const monthlyData = getByMonth(monthsCount);
+    const monthlyData = await getByMonth(monthsCount);
 
     res.json({
       data: monthlyData,
